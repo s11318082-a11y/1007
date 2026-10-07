@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AURA — Nordic Ocean & Coastal Photography Exhibition</title>
+
+  <!-- Google Fonts: Cormorant Garamond (refined serif) & Inter (clean sans) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gallery: {
+              bg: '#f4f7f6',        /* Crisp mist warm off-white */
+              card: '#e9eff0',      /* Soft foam muted gray */
+              dark: '#1b242a',      /* Deep ocean slate charcoal */
+              muted: '#6a7b83',     /* Subdued coastal sea gray */
+              foam: '#f0f6f7',      /* Pure ocean foam white */
+              accent: '#62838e',    /* Quiet sea glass teal accent */
+              mist: '#d8e5e8',      /* Light ocean mist blue */
+              tide: '#2c3a47'       /* Deep tide dark blue-gray */
+            }
+          },
+          fontFamily: {
+            serif: ['Cormorant Garamond', 'serif'],
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Libraries: Three.js for WebGL liquid water shader & GSAP for smooth animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: #f4f7f6;
+      color: #1b242a;
+      overflow-x: hidden;
+      cursor: none;
+    }
+
+    /* Custom Spatial Cursor with Fluid Ripple Effect */
+    #custom-cursor {
+      pointer-events: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1), height 0.35s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.35s ease, border-color 0.35s ease;
+      will-change: transform;
+    }
+
+    .cursor-ripple {
+      position: fixed;
+      pointer-events: none;
+      border-radius: 50%;
+      border: 1px solid rgba(98, 131, 142, 0.35);
+      transform: translate(-50%, -50%) scale(0.2);
+      animation: rippleAnim 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+      z-index: 9998;
+    }
+
+    @keyframes rippleAnim {
+      to {
+        transform: translate(-50%, -50%) scale(3.5);
+        opacity: 0;
+      }
+    }
+
+    /* 3D Perspective & Depth Utilities */
+    .perspective-container {
+      perspective: 1200px;
+      perspective-origin: 50% 50%;
+    }
+
+    .preserve-3d {
+      transform-style: preserve-3d;
+    }
+
+    /* Soft Atmospheric Shadows & Glass Effects */
+    .ocean-shadow {
+      box-shadow: 0 30px 60px -15px rgba(27, 36, 42, 0.08), 0 12px 24px -8px rgba(98, 131, 142, 0.06);
+    }
+
+    .ocean-glass {
+      background: rgba(244, 247, 246, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* Custom Hide Scrollbar */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Subtle Animated Water Wave Divider Line */
+    .wave-line {
+      background: linear-gradient(90deg, transparent, rgba(98, 131, 142, 0.3), transparent);
+      height: 1px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body class="font-sans antialiased text-gallery-dark bg-gallery-bg selection:bg-gallery-dark selection:text-gallery-bg">
+
+  <!-- Custom Fluid Spatial Cursor -->
+  <div id="custom-cursor" class="w-3.5 h-3.5 rounded-full bg-gallery-dark/80 flex items-center justify-center text-[9px] tracking-widest text-gallery-bg uppercase font-medium pointer-events-none shadow-sm">
+    <span id="cursor-text" class="opacity-0 transition-opacity duration-300"></span>
+  </div>
+
+  <!-- Header / Navigation -->
+  <header class="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-8 py-6 md:px-16 pointer-events-none border-b border-gallery-dark/5 ocean-glass">
+    <div class="pointer-events-auto cursor-pointer flex items-center space-x-3 group" onclick="switchView('hero')">
+      <span class="font-serif italic text-2xl md:text-3xl font-light tracking-tight group-hover:text-gallery-accent transition-colors duration-300">AURA</span>
+      <span class="text-[10px] uppercase tracking-[0.25em] text-gallery-muted border-l border-gallery-dark/15 pl-3">OCEAN EXHIBITION</span>
+    </div>
+
+    <nav class="pointer-events-auto flex items-center space-x-8 text-xs uppercase tracking-[0.2em] font-light text-gallery-dark/80">
+      <button onclick="switchView('exhibition')" class="hover:text-gallery-accent transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-gallery-accent hover:after:w-full after:transition-all">3D Gallery</button>
+      <button onclick="switchView('index')" class="hover:text-gallery-accent transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-gallery-accent hover:after:w-full after:transition-all">Archive</button>
+      <button onclick="scrollToContact()" class="hover:text-gallery-accent transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-gallery-accent hover:after:w-full after:transition-all">Inquiries</button>
+    </nav>
+  </header>
+
+  <!-- WebGL Background Canvas for Liquid Caustics & Gentle Water Particles -->
+  <div id="webgl-container" class="fixed inset-0 pointer-events-none z-0 opacity-70 transition-opacity duration-1000"></div>
+
+  <!-- MAIN CONTAINER -->
+  <main class="relative z-10 min-h-screen">
+
+    <!-- SECTION 1: HERO VIEW (3D Floating Photo Card + Ocean Horizon) -->
+    <section id="hero-section" class="relative min-h-screen flex flex-col items-center justify-center px-6 pt-20 transition-all duration-700 ease-out">
+      
+      <!-- Hero Header Typography -->
+      <div class="text-center mb-8 max-w-3xl z-10 pointer-events-none">
+        <div class="inline-flex items-center space-x-2 mb-3">
+          <span class="w-1.5 h-1.5 rounded-full bg-gallery-accent/70 animate-ping"></span>
+          <p class="text-[11px] uppercase tracking-[0.35em] text-gallery-muted font-light">Tidal Silence & Atmospheric Light</p>
+        </div>
+        <h1 class="font-serif text-5xl sm:text-7xl md:text-8xl font-light tracking-wide text-gallery-dark leading-tight">
+          Refractions of the Ocean
+        </h1>
+        <p class="text-xs md:text-sm font-light tracking-widest text-gallery-muted mt-3 max-w-xl mx-auto">
+          An immersive digital gallery exploring quiet coasts, glacial waters, and the rhythmic space between tides.
+        </p>
+      </div>
+
+      <!-- Hero 3D Interactive Floating Photo Card -->
+      <div class="perspective-container w-full max-w-md sm:max-w-lg md:max-w-xl h-[52vh] md:h-[58vh] relative cursor-pointer" id="hero-card-container">
+        <div id="hero-card" class="preserve-3d w-full h-full rounded-sm ocean-shadow transition-transform duration-300 ease-out relative group overflow-hidden bg-gallery-card border border-gallery-accent/20">
+          <img 
+            id="hero-img"
+            src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=85" 
+            alt="Silent Ocean Horizon" 
+            class="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
+            loading="eager"
+          />
+
+          <!-- Overlay Details on Hover -->
+          <div class="absolute inset-0 bg-gradient-to-t from-gallery-dark/80 via-gallery-dark/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-8 text-gallery-bg">
+            <span class="text-[10px] tracking-[0.3em] text-gallery-accent/90 uppercase font-light">FEATURED COASTAL PIECE</span>
+            <h3 class="font-serif text-3xl font-light tracking-wide mt-1 text-gallery-foam">Tidal Drift 01</h3>
+            <div class="flex items-center justify-between text-xs tracking-wider text-gallery-bg/80 mt-2 font-light">
+              <span>SOUTH COAST, ICELAND — 2026</span>
+              <span class="inline-flex items-center space-x-1 text-gallery-mist">
+                <span>ENTER EXHIBITION</span>
+                <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Hint -->
+      <div class="mt-8 text-center z-10 pointer-events-none flex flex-col items-center">
+        <p class="text-[10px] uppercase tracking-[0.3em] text-gallery-muted font-light mb-2">Move cursor to tilt spatial photo • Click to open modal</p>
+        <div class="w-[1px] h-10 bg-gradient-to-b from-gallery-accent/50 to-transparent animate-pulse"></div>
+      </div>
+
+    </section>
+
+    <div class="wave-line"></div>
+
+    <!-- SECTION 2: 3D SPATIAL PHOTO CAROUSEL & OCEAN EXHIBITION -->
+    <section id="exhibition-section" class="min-h-screen py-24 relative flex flex-col justify-center overflow-hidden">
+      
+      <div class="px-8 md:px-16 mb-12 flex flex-col md:flex-row md:items-end justify-between">
+        <div>
+          <span class="text-xs uppercase tracking-[0.35em] text-gallery-accent font-light">COASTAL & WATER COLLECTION</span>
+          <h2 class="font-serif text-4xl md:text-6xl font-light tracking-wide mt-2 text-gallery-dark">Spatial Gallery Walk</h2>
+        </div>
+        <p class="text-xs uppercase tracking-[0.2em] text-gallery-muted mt-4 md:mt-0 font-light flex items-center space-x-2">
+          <span>Drag horizontally or scroll wheel to navigate depth</span>
+        </p>
+      </div>
+
+      <!-- 3D Carousel Stage -->
+      <div id="carousel-stage" class="perspective-container relative w-full h-[58vh] md:h-[65vh] flex items-center justify-center cursor-grab active:cursor-grabbing select-none">
+        <div id="carousel-track" class="preserve-3d relative w-full h-full flex items-center justify-center">
+          <!-- Dynamically Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Carousel Navigation Controls -->
+      <div class="mt-10 px-8 md:px-16 flex items-center justify-between z-20">
+        <div class="flex items-center space-x-3 text-xs tracking-widest text-gallery-muted font-mono">
+          <span id="current-index" class="text-gallery-dark font-medium text-base">01</span>
+          <span>/</span>
+          <span id="total-index">06</span>
+        </div>
+
+        <div class="flex items-center space-x-6">
+          <button onclick="navigateCarousel(-1)" class="p-3.5 border border-gallery-accent/30 rounded-full hover:border-gallery-dark hover:bg-gallery-card transition-all duration-300 group" aria-label="Previous image">
+            <svg class="w-4 h-4 text-gallery-dark group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <button onclick="navigateCarousel(1)" class="p-3.5 border border-gallery-accent/30 rounded-full hover:border-gallery-dark hover:bg-gallery-card transition-all duration-300 group" aria-label="Next image">
+            <svg class="w-4 h-4 text-gallery-dark group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <div class="wave-line"></div>
+
+    <!-- SECTION 3: CURATED ARCHIVE INDEX VIEW -->
+    <section id="index-section" class="min-h-screen px-8 md:px-20 py-24 hidden opacity-0 transition-opacity duration-700">
+      <div class="max-w-6xl mx-auto">
+        <div class="border-b border-gallery-dark/15 pb-8 mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <span class="text-xs uppercase tracking-[0.35em] text-gallery-accent font-light">PHOTOGRAPHY CATALOGUE</span>
+            <h2 class="font-serif text-4xl md:text-6xl font-light tracking-wide mt-2">Curated Coastal Archive</h2>
+          </div>
+          <span class="text-xs tracking-widest text-gallery-muted uppercase font-mono">2024 — 2026 COLLECTION</span>
+        </div>
+
+        <div id="project-list-container" class="space-y-0 divide-y divide-gallery-dark/10">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- DETAIL MODAL FOR CLICKED PHOTOGRAPH -->
+    <div id="detail-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-12 ocean-glass opacity-0 pointer-events-none transition-all duration-500 overflow-y-auto no-scrollbar">
+      <div class="max-w-5xl w-full bg-gallery-bg border border-gallery-accent/30 rounded-sm ocean-shadow p-6 md:p-12 relative my-auto">
+        
+        <button onclick="closeDetailModal()" class="absolute top-6 right-6 p-3 text-gallery-dark hover:text-gallery-accent transition-colors" aria-label="Close detail view">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+          <div class="lg:col-span-7 space-y-6">
+            <div class="overflow-hidden rounded-sm border border-gallery-dark/10 bg-gallery-card">
+              <img id="modal-img" src="" alt="" class="w-full h-auto object-cover max-h-[65vh]" />
+            </div>
+            <div class="grid grid-cols-2 gap-4" id="modal-thumbnails">
+              <!-- Secondary images JS inserted -->
+            </div>
+          </div>
+
+          <div class="lg:col-span-5 space-y-6">
+            <div>
+              <span id="modal-category" class="text-xs uppercase tracking-[0.3em] text-gallery-accent font-light"></span>
+              <h2 id="modal-title" class="font-serif text-4xl font-light text-gallery-dark mt-1"></h2>
+              <p id="modal-specs" class="text-xs font-mono text-gallery-muted mt-2"></p>
+            </div>
+
+            <p id="modal-desc" class="text-xs md:text-sm text-gallery-dark/80 font-light leading-relaxed border-l-2 border-gallery-accent/40 pl-4 py-1"></p>
+
+            <div class="space-y-3 pt-4 border-t border-gallery-dark/10 text-xs">
+              <div class="flex justify-between">
+                <span class="text-gallery-muted uppercase tracking-wider">Location</span>
+                <span id="modal-location" class="text-gallery-dark"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gallery-muted uppercase tracking-wider">Year</span>
+                <span id="modal-year" class="text-gallery-dark"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gallery-muted uppercase tracking-wider">Archival Print</span>
+                <span class="text-gallery-dark">Edition of 8 • Museum Rag Paper</span>
+              </div>
+            </div>
+
+            <div class="pt-6">
+              <button onclick="scrollToContact(); closeDetailModal();" class="w-full py-4 bg-gallery-dark text-gallery-bg rounded-sm text-xs tracking-[0.25em] uppercase font-light hover:bg-gallery-accent transition-all duration-300 flex items-center justify-center space-x-2">
+                <span>INQUIRE ABOUT THIS PRINT</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SECTION 4: CREATOR PROFILE & CONTACT SECTION -->
+    <section id="creator-contact-section" class="relative min-h-screen py-24 px-8 md:px-16 border-t border-gallery-dark/10 bg-gallery-bg">
+      <div class="max-w-7xl mx-auto">
+        
+        <!-- Section Header -->
+        <div class="mb-16 border-b border-gallery-dark/15 pb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <span class="text-xs uppercase tracking-[0.35em] text-gallery-accent font-light">ARTIST PROFILE & INQUIRIES</span>
+            <h2 class="font-serif text-4xl md:text-6xl font-light tracking-wide mt-2">The Studio & Creator</h2>
+          </div>
+          <div class="flex items-center space-x-2 text-xs uppercase tracking-widest text-gallery-muted">
+            <span class="w-2.5 h-2.5 rounded-full bg-teal-600/70 animate-pulse"></span>
+            <span>AVAILABLE FOR OCEANIC COMMISSIONS & PRINTS</span>
+          </div>
+        </div>
+
+        <!-- Main Creator Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
+          
+          <!-- Left Column: Artist Bio & Social Links -->
+          <div class="lg:col-span-5 space-y-10">
+            
+            <div class="flex items-center space-x-6">
+              <div class="w-20 h-20 rounded-full overflow-hidden ocean-shadow border border-gallery-accent/30 bg-gallery-card flex-shrink-0">
+                <img 
+                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80" 
+                  alt="Elena Lin" 
+                  class="w-full h-full object-cover grayscale opacity-90 hover:grayscale-0 transition-all duration-700"
+                />
+              </div>
+              <div class="flex flex-col justify-center">
+                <h3 class="font-serif text-3xl font-light tracking-wide text-gallery-dark leading-tight">ELENA LIN</h3>
+                <p class="text-[11px] uppercase tracking-[0.18em] text-gallery-muted font-light mt-1">Fine Art Photographer & Ocean Spatial Artist</p>
+                <p class="text-[11px] text-gallery-dark/60 tracking-wider font-mono mt-1">STOCKHOLM & TAIPEI</p>
+              </div>
+            </div>
+
+            <!-- Artist Statement -->
+            <div class="space-y-4 text-xs md:text-sm text-gallery-dark/80 font-light leading-relaxed border-l border-gallery-accent/40 pl-6 py-1">
+              <p>
+                “The ocean is a living spatial gallery—where light, cold mist, and fluid motion continuously sculpt temporary architectures.”
+              </p>
+              <p class="text-gallery-muted">
+                Elena Lin explores high-latitude coastlines, Nordic fjords, and marine light refractions. Her work blends quiet minimalism with medium-format spatial depth.
+              </p>
+            </div>
+
+            <!-- Exhibitions -->
+            <div class="space-y-4 pt-4 border-t border-gallery-dark/10">
+              <span class="text-xs uppercase tracking-[0.25em] text-gallery-accent font-light block">SELECTED SOLO EXHIBITIONS</span>
+              <ul class="space-y-3 text-xs tracking-wider">
+                <li class="flex justify-between items-center text-gallery-dark/80">
+                  <span class="font-light">Stockholm Fotografiska — <i class="font-serif italic">Ocean Caustics</i></span>
+                  <span class="text-gallery-muted font-mono">2026</span>
+                </li>
+                <li class="flex justify-between items-center text-gallery-dark/80">
+                  <span class="font-light">Reykjavík Art Museum — <i class="font-serif italic">Glacial Waters</i></span>
+                  <span class="text-gallery-muted font-mono">2025</span>
+                </li>
+                <li class="flex justify-between items-center text-gallery-dark/80">
+                  <span class="font-light">Taipei Photo Triennale — <i class="font-serif italic">Tidal Horizon</i></span>
+                  <span class="text-gallery-muted font-mono">2024</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Social Links -->
+            <div class="pt-6 border-t border-gallery-dark/10 space-y-3">
+              <span class="text-xs uppercase tracking-[0.25em] text-gallery-accent font-light block">SOCIAL & NETWORKS</span>
+              <div class="flex items-center space-x-4">
+                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" class="p-3 rounded-full border border-gallery-accent/25 hover:border-gallery-dark hover:bg-gallery-dark hover:text-gallery-bg transition-all duration-300 group" aria-label="Instagram">
+                  <svg class="w-4 h-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                </a>
+                <a href="https://behance.net" target="_blank" rel="noopener noreferrer" class="p-3 rounded-full border border-gallery-accent/25 hover:border-gallery-dark hover:bg-gallery-dark hover:text-gallery-bg transition-all duration-300 group" aria-label="Behance">
+                  <svg class="w-4 h-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 24 24"><path d="M22 7h-7v-2h7v2zm1.726 10c-.442 1.297-2.029 3-4.813 3-3.035 0-5.13-2.038-5.13-5.26 0-3.342 2.162-5.385 5.003-5.385 2.879 0 4.707 2.053 4.484 5.385h-7.382c.088 1.631 1.277 2.75 2.923 2.75 1.468 0 2.228-.698 2.535-1.49h2.38zm-4.887-5.405c-1.306 0-2.208.826-2.38 2.115h4.63c-.042-1.258-.87-2.115-2.25-2.115zm-11.839 8.405h-7v-16h7.62c2.81 0 4.88 1.282 4.88 3.826 0 1.716-.948 2.819-2.296 3.38 1.77.491 2.796 1.838 2.796 3.805 0 2.879-2.395 4.989-5.999 4.989zm-4.001-13.003v3.428h3.364c1.233 0 2.181-.617 2.181-1.714 0-1.123-.948-1.714-2.181-1.714h-3.364zm0 6.002v3.999h3.708c1.468 0 2.409-.699 2.409-2 0-1.277-.941-1.999-2.409-1.999h-3.708z"/></svg>
+                </a>
+                <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" class="p-3 rounded-full border border-gallery-accent/25 hover:border-gallery-dark hover:bg-gallery-dark hover:text-gallery-bg transition-all duration-300 group" aria-label="Unsplash">
+                  <svg class="w-4 h-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 24 24"><path d="M7.5 6.75V0h9v6.75h-9zm9 3.75H24V24H0V10.5h7.5v6.75h9V10.5z"/></svg>
+                </a>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Clean Inquiry Form -->
+          <div class="lg:col-span-7 bg-gallery-card/60 p-8 md:p-12 rounded-sm border border-gallery-accent/20 ocean-shadow relative">
+            <div class="mb-8">
+              <span class="text-xs uppercase tracking-[0.25em] text-gallery-accent font-light block">EXHIBITION & PRINT INQUIRIES</span>
+              <h3 class="font-serif text-3xl font-light tracking-wide mt-1 text-gallery-dark">Connect with the Studio</h3>
+              <p class="text-xs text-gallery-dark/70 font-light mt-2">Send an inquiry for museum print purchases, coastal photography commissions, or gallery curation.</p>
+            </div>
+
+            <form id="contact-form" onsubmit="handleContactSubmit(event)" class="space-y-6">
+              
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                  <label for="contact-name" class="text-[11px] uppercase tracking-widest text-gallery-muted font-light block">YOUR NAME *</label>
+                  <input 
+                    type="text" 
+                    id="contact-name" 
+                    required 
+                    placeholder="e.g. Maya Lin" 
+                    class="w-full bg-gallery-bg border border-gallery-accent/30 rounded-sm px-4 py-3 text-xs tracking-wider text-gallery-dark placeholder:text-gallery-muted/50 focus:outline-none focus:border-gallery-accent transition-colors"
+                  />
+                </div>
+
+                <div class="space-y-2">
+                  <label for="contact-email" class="text-[11px] uppercase tracking-widest text-gallery-muted font-light block">EMAIL ADDRESS *</label>
+                  <input 
+                    type="email" 
+                    id="contact-email" 
+                    required 
+                    placeholder="e.g. maya@domain.com" 
+                    class="w-full bg-gallery-bg border border-gallery-accent/30 rounded-sm px-4 py-3 text-xs tracking-wider text-gallery-dark placeholder:text-gallery-muted/50 focus:outline-none focus:border-gallery-accent transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label for="contact-type" class="text-[11px] uppercase tracking-widest text-gallery-muted font-light block">INQUIRY TYPE</label>
+                <select 
+                  id="contact-type" 
+                  class="w-full bg-gallery-bg border border-gallery-accent/30 rounded-sm px-4 py-3 text-xs tracking-wider text-gallery-dark focus:outline-none focus:border-gallery-accent transition-colors cursor-pointer"
+                >
+                  <option value="print">Fine Art Archival Ocean Print</option>
+                  <option value="commission">Coastal Architectural Photography</option>
+                  <option value="exhibition">Gallery Exhibition Curation</option>
+                </select>
+              </div>
+
+              <div class="space-y-2">
+                <label for="contact-message" class="text-[11px] uppercase tracking-widest text-gallery-muted font-light block">MESSAGE *</label>
+                <textarea 
+                  id="contact-message" 
+                  rows="4" 
+                  required 
+                  placeholder="Share details regarding requested photo print title, project scale, or timeline..." 
+                  class="w-full bg-gallery-bg border border-gallery-accent/30 rounded-sm px-4 py-3 text-xs tracking-wider text-gallery-dark placeholder:text-gallery-muted/50 focus:outline-none focus:border-gallery-accent transition-colors resize-none"
+                ></textarea>
+              </div>
+
+              <div class="pt-2">
+                <button 
+                  type="submit" 
+                  class="w-full sm:w-auto px-8 py-4 bg-gallery-dark text-gallery-bg rounded-sm text-xs tracking-[0.25em] uppercase font-light hover:bg-gallery-accent transition-all duration-300 flex items-center justify-center space-x-3 group"
+                >
+                  <span>SEND INQUIRY</span>
+                  <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                </button>
+              </div>
+
+              <div id="contact-success-toast" class="hidden p-4 bg-gallery-dark text-gallery-bg text-xs tracking-wider font-light rounded-sm flex items-center space-x-3">
+                <svg class="w-5 h-5 text-teal-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/></svg>
+                <span>Thank you. Your inquiry has been received. Our studio will respond shortly.</span>
+              </div>
+
+            </form>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECTION 5: FOOTER BAR -->
+    <footer class="border-t border-gallery-dark/15 py-12 px-8 md:px-16 bg-gallery-bg text-gallery-dark">
+      <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-xs tracking-widest font-light text-gallery-muted uppercase">
+        
+        <div class="flex items-center space-x-3">
+          <span class="font-serif italic text-lg text-gallery-dark font-normal">AURA</span>
+          <span>© 2026 OCEAN GALLERY EXHIBITION. ALL RIGHTS RESERVED.</span>
+        </div>
+
+        <div class="text-center">
+          <span>CURATED BY ELENA LIN — STOCKHOLM & TAIPEI</span>
+        </div>
+
+        <button onclick="scrollToTop()" class="flex items-center space-x-2 text-gallery-dark hover:text-gallery-accent transition-colors group">
+          <span>BACK TO TOP</span>
+          <svg class="w-4 h-4 group-hover:-translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 10l7-7m0 0l7-7m-7 7v18"/></svg>
+        </button>
+
+      </div>
+    </footer>
+
+  </main>
+
+  <script>
+    /* ==========================================================================
+       CURATED OCEAN & COASTAL GALLERY DATASET
+       ========================================================================== */
+    const GALLERY_DATA = [
+      {
+        id: '01',
+        title: 'Tidal Drift 01',
+        category: 'Quiet Coastline',
+        year: '2026',
+        location: 'Vík Coast, Iceland',
+        specs: 'Hasselblad X2D 100C / 38mm f/2.5',
+        curator: 'Ocean Series',
+        coverImg: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=85',
+        series: [
+          'https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=1400&q=85',
+          'https://images.unsplash.com/photo-1476514525535-ce74f45814d0?auto=format&fit=crop&w=1400&q=85'
+        ],
+        desc: 'A study of weightless tidal froth gliding over basalt coastlines during cold morning light.'
+      },
+      {
+        id: '02',
+        title: 'Arctic Glacial Horizon',
+        category: 'Glacial Waters',
+        year: '2026',
+        location: 'Ilulissat, Greenland',
+        specs: 'Leica SL2 / 50mm Summilux',
+        curator: 'Polar Water',
+        coverImg: 'https://images.unsplash.com/photo-1517411032315-54ef2cb783bb?auto=format&fit=crop&w=1600&q=85',
+        series: [
+          'https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?auto=format&fit=crop&w=1400&q=85',
+          'https://images.unsplash.com/photo-1491555103944-7c647fd857e6?auto=format&fit=crop&w=1400&q=85'
+        ],
+        desc: 'Monolithic iceberg silhouettes reflecting subtle blue-gray refraction across still fjord waters.'
+      },
+      {
+        id: '03',
+        title: 'Coastal Fog & Light',
+        category: 'Atmospheric Sea',
+        year: '2025',
+        location: 'Lofoten, Norway',
+        specs: 'Sony A7R V / 85mm GM',
+        curator: 'Nordic Mist',
+        coverImg: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=85',
+        series: [
+          'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1400&q=85',
+          'https://images.unsplash.com/photo-1434394354979-a235cd36269d?auto=format&fit=crop&w=1400&q=85'
+        ],
+        desc: 'Dense morning sea fog obscuring granite coastal cliffs, capturing the quiet boundary between water and atmosphere.'
+      },
+      {
+        id: '04',
+        title: 'Water Ripple & Glimmer',
+        category: 'Liquid Geometry',
+        year: '2026',
+        location: 'Gotland, Sweden',
+        specs: 'Fujifilm GFX 100 II / 45mm',
+        curator: 'Ocean Caustics',
+        coverImg: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=1600&q=85',
+        series: [
+          'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1400&q=85',
+          'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1400&q=85'
+        ],
+        desc: 'Gentle aquatic surface waves refracting sunlight into soft geometric caustic patterns.'
+      },
+      {
+        id: '05',
+        title: 'Solitary Sea Beacon',
+        category: 'Coastal Architecture',
+        year: '2025',
+        location: 'Fårö Island, Sweden',
+        specs: 'Hasselblad 907X / 45mm',
+        curator: 'Nordic Monoliths',
+        coverImg: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1600&q=85',
+        series: [
+          'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&w=1400&q=85',
+          'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=1400&q=85'
+        ],
+        desc: 'A lone lighthouse standing against deep ocean blue dusk and vast horizontal waters.'
+      },
+      {
+        id: '06',
+        title: 'Deep Ocean Blue Hour',
+        category: 'Twilight Marine',
+        year: '2025',
+        location: 'Helsinki Archipelago',
+        specs: 'Leica M11 / 35mm Summicron',
+        curator: 'Blue Hour Series',
+        coverImg: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=1600&q=85',
+        series: [
+          'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=1400&q=85',
+          'https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=1400&q=85'
+        ],
+        desc: 'Calm marine waters reflecting dark blue twilight gradients in the Baltic Sea.'
+      }
+    ];
+
+    /* ==========================================================================
+       GLOBAL STATE & VARIABLES
+       ========================================================================== */
+    let currentIndex = 0;
+    let isDragging = false;
+    let startX = 0;
+    let currentDragX = 0;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
+
+    /* ==========================================================================
+       CUSTOM SPATIAL CURSOR & WATER RIPPLE ON MOUSE
+       ========================================================================== */
+    const cursor = document.getElementById('custom-cursor');
+    const cursorText = document.getElementById('cursor-text');
+    let cursorX = window.innerWidth / 2;
+    let cursorY = window.innerHeight / 2;
+    let mouseX = cursorX;
+    let mouseY = cursorY;
+    let lastRippleTime = 0;
+
+    window.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      mouse.targetX = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.targetY = -(e.clientY / window.innerHeight) * 2 + 1;
+
+      // Spawn subtle water ripple on move
+      const now = Date.now();
+      if (now - lastRippleTime > 180 && !isDragging) {
+        createWaterRipple(e.clientX, e.clientY);
+        lastRippleTime = now;
+      }
+    });
+
+    function createWaterRipple(x, y) {
+      const ripple = document.createElement('div');
+      ripple.className = 'cursor-ripple';
+      ripple.style.left = `${x}px`;
+      ripple.style.top = `${y}px`;
+      ripple.style.width = '30px';
+      ripple.style.height = '30px';
+      document.body.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 1200);
+    }
+
+    function updateCursor() {
+      const lerpFactor = 0.15;
+      cursorX += (mouseX - cursorX) * lerpFactor;
+      cursorY += (mouseY - cursorY) * lerpFactor;
+      cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0) translate(-50%, -50%)`;
+      requestAnimationFrame(updateCursor);
+    }
+    updateCursor();
+
+    function setCursorHover(isHovered, text = '') {
+      if (isHovered) {
+        cursor.classList.remove('w-3.5', 'h-3.5');
+        cursor.classList.add('w-16', 'h-16', 'bg-gallery-dark/90', 'ocean-glass', 'border', 'border-gallery-accent/40');
+        cursorText.textContent = text;
+        cursorText.classList.remove('opacity-0');
+      } else {
+        cursor.classList.remove('w-16', 'h-16', 'bg-gallery-dark/90', 'ocean-glass', 'border', 'border-gallery-accent/40');
+        cursor.classList.add('w-3.5', 'h-3.5');
+        cursorText.textContent = '';
+        cursorText.classList.add('opacity-0');
+      }
+    }
+
+    /* ==========================================================================
+       THREE.JS LIQUID WATER SHADER & PARTICLES SCENE
+       ========================================================================== */
+    function initThreeWaterScene() {
+      const container = document.getElementById('webgl-container');
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.z = 80;
+
+      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      container.appendChild(renderer.domElement);
+
+      // Custom Water Shader Plane
+      const waterGeometry = new THREE.PlaneGeometry(300, 300, 32, 32);
+      const waterMaterial = new THREE.ShaderMaterial({
+        transparent: true,
+        uniforms: {
+          uTime: { value: 0 },
+          uColorA: { value: new THREE.Color(0xd8e5e8) }, // Light mist blue
+          uColorB: { value: new THREE.Color(0x62838e) }  // Sea glass teal
+        },
+        vertexShader: `
+          uniform float uTime;
+          varying vec2 vUv;
+          varying float vElevation;
+          void main() {
+            vUv = uv;
+            vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+            float elevation = sin(modelPosition.x * 0.05 + uTime * 0.8) * cos(modelPosition.y * 0.05 + uTime * 0.6) * 3.0;
+            modelPosition.z += elevation;
+            vElevation = elevation;
+            gl_Position = projectionMatrix * viewMatrix * modelPosition;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColorA;
+          uniform vec3 uColorB;
+          varying vec2 vUv;
+          varying float vElevation;
+          void main() {
+            float mixStrength = (vElevation + 3.0) / 6.0;
+            vec3 color = mix(uColorA, uColorB, mixStrength);
+            gl_FragColor = vec4(color, 0.08);
+          }
+        `
+      });
+
+      const waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
+      waterMesh.rotation.x = -Math.PI * 0.35;
+      waterMesh.position.y = -30;
+      scene.add(waterMesh);
+
+      // Ambient Floating Sea Mist Particles
+      const particleCount = 100;
+      const particleGeo = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+
+      for (let i = 0; i < particleCount * 3; i += 3) {
+        positions[i] = (Math.random() - 0.5) * 250;
+        positions[i + 1] = (Math.random() - 0.5) * 250;
+        positions[i + 2] = (Math.random() - 0.5) * 150;
+      }
+
+      particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const particleMat = new THREE.PointsMaterial({
+        color: 0x62838e,
+        size: 1.4,
+        transparent: true,
+        opacity: 0.35
+      });
+
+      const particles = new THREE.Points(particleGeo, particleMat);
+      scene.add(particles);
+
+      const clock = new THREE.Clock();
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const elapsedTime = clock.getElapsedTime();
+        waterMaterial.uniforms.uTime.value = elapsedTime;
+        particles.rotation.y = elapsedTime * 0.02;
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    /* ==========================================================================
+       HERO 3D TILT INTERACTION
+       ========================================================================== */
+    const heroCard = document.getElementById('hero-card');
+    const heroCardContainer = document.getElementById('hero-card-container');
+
+    if (heroCardContainer && !reducedMotion) {
+      heroCardContainer.addEventListener('mouseenter', () => setCursorHover(true, 'EXPLORE'));
+      heroCardContainer.addEventListener('mouseleave', () => {
+        setCursorHover(false);
+        gsap.to(heroCard, { rotateX: 0, rotateY: 0, duration: 1.2, ease: "power2.out" });
+      });
+
+      heroCardContainer.addEventListener('click', () => {
+        openDetailModal(GALLERY_DATA[0]);
+      });
+
+      function updateHeroTilt() {
+        if (!reducedMotion) {
+          mouse.x += (mouse.targetX - mouse.x) * 0.08;
+          mouse.y += (mouse.targetY - mouse.y) * 0.08;
+          heroCard.style.transform = `rotateX(${mouse.y * 6}deg) rotateY(${mouse.x * 8}deg) translateZ(12px)`;
+        }
+        requestAnimationFrame(updateHeroTilt);
+      }
+      updateHeroTilt();
+    }
+
+    /* ==========================================================================
+       3D CAROUSEL ENGINE
+       ========================================================================== */
+    const carouselTrack = document.getElementById('carousel-track');
+
+    function renderCarouselCards() {
+      carouselTrack.innerHTML = '';
+
+      GALLERY_DATA.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = `carousel-card absolute w-[260px] sm:w-[320px] md:w-[380px] h-[380px] sm:h-[450px] md:h-[500px] rounded-sm bg-gallery-card ocean-shadow transition-all duration-700 cursor-pointer overflow-hidden group border border-gallery-accent/20`;
+        card.dataset.index = index;
+
+        card.innerHTML = `
+          <div class="relative w-full h-full preserve-3d">
+            <img src="${item.coverImg}" alt="${item.title}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            <div class="absolute inset-0 bg-gradient-to-t from-gallery-dark/80 via-gallery-dark/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 p-6 flex flex-col justify-end text-gallery-bg">
+              <span class="text-[9px] tracking-[0.25em] text-gallery-accent uppercase font-light">PROJECT ${item.id}</span>
+              <h4 class="font-serif text-2xl font-light tracking-wide mt-1 text-gallery-foam">${item.title}</h4>
+              <div class="flex items-center justify-between text-[11px] tracking-widest text-gallery-bg/80 mt-2 font-light">
+                <span>${item.location.toUpperCase()}</span>
+                <span>${item.year}</span>
+              </div>
+            </div>
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          if (Math.abs(currentDragX) < 5) {
+            if (index === currentIndex) {
+              openDetailModal(item);
+            } else {
+              currentIndex = index;
+              updateCarouselPositions();
+            }
+          }
+        });
+
+        card.addEventListener('mouseenter', () => setCursorHover(true, index === currentIndex ? 'VIEW' : 'SELECT'));
+        card.addEventListener('mouseleave', () => setCursorHover(false));
+
+        carouselTrack.appendChild(card);
+      });
+
+      updateCarouselPositions();
+    }
+
+    function updateCarouselPositions() {
+      const cards = document.querySelectorAll('.carousel-card');
+      const total = cards.length;
+
+      document.getElementById('current-index').textContent = (currentIndex + 1).toString().padStart(2, '0');
+      document.getElementById('total-index').textContent = total.toString().padStart(2, '0');
+
+      cards.forEach((card, i) => {
+        let diff = i - currentIndex;
+        if (diff > total / 2) diff -= total;
+        if (diff < -total / 2) diff += total;
+
+        const absDiff = Math.abs(diff);
+        const translateX = diff * (window.innerWidth < 640 ? 220 : 340);
+        const translateZ = -absDiff * 250;
+        const rotateY = diff * -12;
+        const scale = Math.max(1 - absDiff * 0.18, 0.65);
+        const opacity = diff === 0 ? 1 : Math.max(0.85 - absDiff * 0.35, 0.15);
+        const blur = diff === 0 ? '0px' : `${absDiff * 2.5}px`;
+
+        if (reducedMotion) {
+          gsap.to(card, { x: translateX, scale: scale, opacity: opacity, duration: 0.5 });
+        } else {
+          gsap.to(card, {
+            x: translateX,
+            z: translateZ,
+            rotateY: rotateY,
+            scale: scale,
+            opacity: opacity,
+            filter: `blur(${blur})`,
+            duration: 0.8,
+            ease: "power2.out",
+            overwrite: "auto"
+          });
+        }
+        card.style.zIndex = 100 - absDiff;
+      });
+    }
+
+    function navigateCarousel(direction) {
+      const total = GALLERY_DATA.length;
+      currentIndex = (currentIndex + direction + total) % total;
+      updateCarouselPositions();
+    }
+
+    /* ==========================================================================
+       DRAG ENGINE
+       ========================================================================== */
+    const stage = document.getElementById('carousel-stage');
+
+    function onPointerDown(e) {
+      isDragging = true;
+      startX = e.clientX || (e.touches && e.touches[0].clientX);
+      currentDragX = 0;
+      setCursorHover(true, 'DRAG');
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      const x = e.clientX || (e.touches && e.touches[0].clientX);
+      const deltaX = x - startX;
+      currentDragX = deltaX;
+
+      if (Math.abs(deltaX) > 60) {
+        navigateCarousel(deltaX < 0 ? 1 : -1);
+        startX = x;
+      }
+    }
+
+    function onPointerUp() {
+      if (isDragging) {
+        isDragging = false;
+        setCursorHover(false);
+        setTimeout(() => { currentDragX = 0; }, 50);
+      }
+    }
+
+    stage.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+
+    stage.addEventListener('touchstart', onPointerDown, { passive: true });
+    window.addEventListener('touchmove', onPointerMove, { passive: true });
+    window.addEventListener('touchend', onPointerUp);
+
+    stage.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (Math.abs(e.deltaY) > 20) {
+        navigateCarousel(e.deltaY > 0 ? 1 : -1);
+      }
+    }, { passive: false });
+
+    /* ==========================================================================
+       ARCHIVE INDEX RENDERING
+       ========================================================================== */
+    function renderProjectIndex() {
+      const container = document.getElementById('project-list-container');
+      container.innerHTML = '';
+
+      GALLERY_DATA.forEach((project) => {
+        const item = document.createElement('div');
+        item.className = 'py-8 flex flex-col md:flex-row md:items-center justify-between cursor-pointer group transition-all duration-300 hover:px-4';
+        
+        item.innerHTML = `
+          <div class="flex items-baseline space-x-6">
+            <span class="font-mono text-xs text-gallery-accent tracking-widest">${project.id}</span>
+            <h3 class="font-serif text-3xl md:text-4xl font-light text-gallery-dark group-hover:text-gallery-accent transition-colors">${project.title}</h3>
+          </div>
+          <div class="flex items-center space-x-8 text-xs uppercase tracking-widest text-gallery-muted mt-4 md:mt-0 font-light">
+            <span>${project.category}</span>
+            <span>${project.location}</span>
+            <span>${project.year}</span>
+            <svg class="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+          </div>
+        `;
+
+        item.addEventListener('click', () => openDetailModal(project));
+        item.addEventListener('mouseenter', () => setCursorHover(true, 'VIEW'));
+        item.addEventListener('mouseleave', () => setCursorHover(false));
+
+        container.appendChild(item);
+      });
+    }
+
+    /* ==========================================================================
+       MODAL FUNCTIONS
+       ========================================================================== */
+    function openDetailModal(item) {
+      const modal = document.getElementById('detail-modal');
+      document.getElementById('modal-img').src = item.coverImg;
+      document.getElementById('modal-title').textContent = item.title;
+      document.getElementById('modal-category').textContent = item.category;
+      document.getElementById('modal-specs').textContent = item.specs;
+      document.getElementById('modal-desc').textContent = item.desc;
+      document.getElementById('modal-location').textContent = item.location;
+      document.getElementById('modal-year').textContent = item.year;
+
+      const thumbnails = document.getElementById('modal-thumbnails');
+      thumbnails.innerHTML = '';
+      item.series.forEach(imgUrl => {
+        const thumb = document.createElement('img');
+        thumb.src = imgUrl;
+        thumb.className = 'w-full h-24 object-cover rounded-sm cursor-pointer border border-gallery-dark/10 hover:border-gallery-accent transition-all';
+        thumb.onclick = () => { document.getElementById('modal-img').src = imgUrl; };
+        thumbnails.appendChild(thumb);
+      });
+
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function closeDetailModal() {
+      const modal = document.getElementById('detail-modal');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    /* ==========================================================================
+       NAVIGATION & HELPER FUNCTIONS
+       ========================================================================== */
+    function switchView(viewName) {
+      const hero = document.getElementById('hero-section');
+      const exhibition = document.getElementById('exhibition-section');
+      const indexView = document.getElementById('index-section');
+
+      if (viewName === 'hero') {
+        hero.classList.remove('hidden');
+        exhibition.classList.remove('hidden');
+        indexView.classList.add('hidden', 'opacity-0');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (viewName === 'exhibition') {
+        hero.classList.remove('hidden');
+        exhibition.classList.remove('hidden');
+        indexView.classList.add('hidden', 'opacity-0');
+        exhibition.scrollIntoView({ behavior: 'smooth' });
+      } else if (viewName === 'index') {
+        hero.classList.add('hidden');
+        exhibition.classList.add('hidden');
+        indexView.classList.remove('hidden');
+        gsap.to(indexView, { opacity: 1, duration: 0.6 });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function scrollToContact() {
+      switchView('hero');
+      document.getElementById('creator-contact-section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function handleContactSubmit(event) {
+      event.preventDefault();
+      const toast = document.getElementById('contact-success-toast');
+      const form = document.getElementById('contact-form');
+
+      toast.classList.remove('hidden');
+      form.reset();
+
+      setTimeout(() => { toast.classList.add('hidden'); }, 6000);
+    }
+
+    /* ==========================================================================
+       INITIALIZATION
+       ========================================================================== */
+    window.onload = function() {
+      initThreeWaterScene();
+      renderCarouselCards();
+      renderProjectIndex();
+
+      gsap.from('#hero-card-container', {
+        y: 40,
+        opacity: 0,
+        duration: 1.4,
+        ease: "power3.out"
+      });
+    };
+  </script>
+</body>
+</html>
